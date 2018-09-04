@@ -18,18 +18,18 @@ lock_user = ""
 queue = []
 
 MINUTE = 60
-GAME_TIME = 1*MINUTE
-GAME_REPEAT_TIME = 1*MINUTE
+GAME_TIME = 30*MINUTE
+GAME_REPEAT_TIME = 5*MINUTE
 LOCK_WAIT = 2*MINUTE
 
 
 def notify(chat_id):
     for i in range(6):
         Timer(GAME_REPEAT_TIME*i,
-              lambda num: bot.send_message(chat_id, "Ты еще играешь? Прошло уже "+\
-                                           str((GAME_TIME+num*GAME_REPEAT_TIME) / MINUTE) +
-                                           " минут, другим тоже хочется... "
-                                           "Чтобы отметить, что стол больше не занят, нажми /leave")
+              lambda: bot.send_message(chat_id, "Ты еще играешь? Прошло уже больше"+\
+                                       str(GAME_TIME / MINUTE) +
+                                       " минут, другим тоже хочется... "
+                                       "Чтобы отметить, что стол больше не занят, нажми /leave")
               if book_chat_id == chat_id else None).start()
 
     for admin in ADMIN_CHATS_ID:
