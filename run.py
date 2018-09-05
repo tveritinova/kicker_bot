@@ -2,6 +2,7 @@
 
 import datetime
 import telebot
+from telebot import types
 from threading import Timer
 import pytz
 
@@ -13,8 +14,9 @@ free = True
 book_user = ""
 book_chat_id = -1
 book_start = None
-locked = False
-lock_user = ""
+
+wait_user = None
+wait_user_booked = None
 
 queue = []
 
@@ -24,7 +26,7 @@ GAME_REPEAT_TIME = 5*MINUTE
 LOCK_WAIT = 2*MINUTE
 
 
-def notify(chat_id):
+def remind(chat_id):
     for i in range(6):
         Timer(GAME_REPEAT_TIME*i,
               lambda: bot.send_message(chat_id, "Ты еще играешь? Прошло уже больше"+\
@@ -38,50 +40,48 @@ def notify(chat_id):
                                     if book_chat_id == chat_id else None).start()
 
 
-def book(user, chat_id):
-    global free, locked, lock_user, book_user, book_chat_id, book_start
-    if free and (not locked or lock_user == user):
-        free = False
-        book_user = user
-        book_chat_id = chat_id
-        book_start = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
-        Timer(GAME_TIME, lambda: notify(chat_id) if book_user == user else None).start()
-        return True
+def book(chat_id, user, time):
+    global free, book_chat_id, book_user, book_start
+    free = False
+    book_chat_id = chat_id
+    book_user = user
+    book_start = time
+
+
+def unbook(chat_id, send_message=True):
+    global free, book_user, book_chat_id, book_start, wait_user, wait_user_booked
+    if len(queue) > 0:
+        first_user, first_chat_id = queue.pop(0)
+        book(first_chat_id, first_user, datetime.datetime.now(pytz.timezone('Europe/Moscow')))
+        bot.send_message(first_chat_id,
+                         "Кикер освободился, беги играть! "
+                         "У тебя и только у тебя есть возможность "
+                         "занять стол в течение двух минут, "
+                         "для этого нажми /book."
+                         "Если ты не успеешь, то эта возможность "
+                         "перейдет к следующему в очереди. "
+                         "Если ты не хочешь занимать стол, то нажи /unlock, "
+                         "чтобы не задерживать других людей в очереди")
+        wait_user = first_user
+        wait_user_booked = False
+        Timer(LOCK_WAIT, lambda: unbook(first_chat_id, send_message=False) if not wait_user_booked else None).start()
     else:
-        return False
-
-
-def lock():
-    global queue, locked, lock_time, lock_user
-    if len(queue) == 0:
         free = True
-    first_user, chat_id = queue.pop(0)
-    locked = True
-    lock_time = datetime.datetime.now()
-    lock_user = first_user
-    bot.send_message(chat_id, "Кикер освободился, беги играть! "
-                              "У тебя и только у тебя есть возможность "
-                              "занять стол в течение двух минут, "
-                              "для этого нажми /book."
-                              "Если ты не успеешь, то эта возможность "
-                              "перейдет к следующему в очереди. "
-                              "Если ты не хочешь занимать стол, то нажи /unlock, "
-                              "чтобы не задерживать других людей в очереди")
-    Timer(LOCK_WAIT, lambda: lock() if lock_user == first_user else None).start()
+        book_user = None
+        book_chat_id = None
+        book_start = None
+
+    bot.send_message(chat_id, "Спасибо, что вовремя отметил, что стол освободился!")
 
 
 @bot.message_handler(commands=['check'])
 def check(message):
-    global free, book_user, locked
+    global free, book_user
     text = ""
-    if free and not locked:
+    if free:
         text = "Свободно. Не забудь нажать /book, когда займешь стол."
     else:
-        text = u"Занято @"+\
-               (book_user+" c "+book_start.strftime("%H:%M")
-                if not locked
-                else lock_user) + \
-               ". " + \
+        text = u"Занято @"+book_user+" c "+book_start.strftime("%H:%M")+". " + \
                u"В очереди "+str(len(queue))+u" человек. " + \
                u"Чтобы встать в очередь, нажми /i_will_wait."
     bot.send_message(message.chat.id, text)
@@ -89,20 +89,46 @@ def check(message):
 
 @bot.message_handler(commands=['book'])
 def book_command(message):
-    if book(message.from_user.username, message.chat.id):
+    global free, book_user, book_chat_id, book_start, wait_user_booked
+    if free:
+        book(message.chat.id, message.from_user.username, datetime.datetime.now(pytz.timezone('Europe/Moscow')))
+        Timer(GAME_TIME, lambda: remind(message.chat.id) if book_user == message.from_user.username else None).start()
         bot.send_message(message.chat.id, "Успешно")
     else:
-        bot.send_message(message.chat.id, "Не удалось")
+        if wait_user == message.from_user.username:
+            wait_user_booked = True
+            bot.send_message(message.chat.id, "Молодец, беги играть!")
+        else:
+            bot.send_message(message.chat.id, "Не удалось, стол занят")
 
 
 @bot.message_handler(commands=["leave"])
 def leave(message):
     global free
-    if len(queue) > 0:
-        lock()
-        # bot.send_message(message.chat.id, "")
-    free = True
-    bot.send_message(message.chat.id, "Спасибо, что вовремя отметил, что стол освободился!")
+    if free:
+        bot.send_message(message.chat.id, "В данный момент стол свободен.")
+    else:
+        if book_user != message.from_user.username:
+            keyboard = types.InlineKeyboardMarkup()
+            callback_button = types.InlineKeyboardButton(text="Да", callback_data="leave_for_sure")
+            keyboard.add(callback_button)
+            bot.send_message(message.chat.id, "Ты хочешь освободить стол, "
+                                              "который занят в данный момент "
+                                              "другим человеком, ты уверен?", reply_markup=keyboard)
+        else:
+            unbook(message.chat.id)
+
+
+
+
+
+@bot.callback_query_handler(func=lambda call: True)
+def test_callback(call):
+    global book_chat_id
+    if call.data == "leave_for_sure":
+        unbook(call.message.chat.id)
+        bot.send_message(book_chat_id, "Вашу бронь отменил @"+call.message.chat.id+". "
+                                       "Вероятно, вы забыли вовремя отметить доступность стола. Не надо так :(")
 
 
 @bot.message_handler(commands=["i_will_wait"])
@@ -119,25 +145,12 @@ def add_to_queue(message):
                          "Когда придет ваша очередь, вам придет уведомление")
 
 
-@bot.message_handler(commands=["unlock"])
-def unlock(message):
-    global locked
-    if message.from_user.username == lock_user:
-        if len(queue) > 0:
-            lock()
-        else:
-            free = True
-            locked = False
-        bot.send_message(message.chat.id, "Спасибо, что освободил стол для других людей в очереди!")
-    else:
-        bot.send_message(message.chat.id, "На данный момент стол забронирован за другим человеком :(")
-
-
 @bot.message_handler(commands=["start", "help"])
 def start(message):
     bot.send_message(message.chat.id, "Привет, любитель кикера! Чтобы забронировать - нажми /book, "
                                       "чтобы проверить доступность стола - нажми /check, "
                                       "чтобы отметить, что стол свободен - нажми /leave.")
+
 
 @bot.message_handler(content_types=["text"])
 def repeat_all_messages(message):
