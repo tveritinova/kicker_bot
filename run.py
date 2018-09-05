@@ -53,7 +53,8 @@ def book(user, chat_id):
 
 def lock():
     global queue, locked, lock_time, lock_user
-    assert len(queue) == 0
+    if len(queue) == 0:
+        free = True
     first_user, chat_id = queue.pop(0)
     locked = True
     lock_time = datetime.datetime.now()
@@ -99,14 +100,15 @@ def leave(message):
     global free
     if len(queue) > 0:
         lock()
-        bot.send_message(message.chat.id, "")
+        # bot.send_message(message.chat.id, "")
     free = True
     bot.send_message(message.chat.id, "Спасибо, что вовремя отметил, что стол освободился!")
 
 
 @bot.message_handler(commands=["i_will_wait"])
 def add_to_queue(message):
-    if len(queue) == 0:
+    global free
+    if free and len(queue) == 0:
         bot.send_message(message.chat.id, "Очередь пуста. Чтобы отметить, что вы заняли стол, нажмите /book.")
     pair = [message.from_user.username, message.chat.id]
     if pair in queue:
@@ -124,6 +126,7 @@ def unlock(message):
         if len(queue) > 0:
             lock()
         else:
+            free = True
             locked = False
         bot.send_message(message.chat.id, "Спасибо, что освободил стол для других людей в очереди!")
     else:
@@ -142,4 +145,8 @@ def repeat_all_messages(message):
     bot.send_message(message.chat.id, "ой, непонятно :(")
 
 if __name__ == '__main__':
-    bot.polling(none_stop=True)
+    while True:
+        try:
+            bot.polling(none_stop=True)
+        except Exception as e:
+            print e
