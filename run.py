@@ -3,6 +3,7 @@
 import datetime
 import telebot
 from threading import Timer
+import pytz
 
 from config import token, ADMIN_CHATS_ID
 
@@ -43,7 +44,7 @@ def book(user, chat_id):
         free = False
         book_user = user
         book_chat_id = chat_id
-        book_start = datetime.datetime.now()
+        book_start = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
         Timer(GAME_TIME, lambda: notify(chat_id) if book_user == user else None).start()
         return True
     else:
