@@ -8,7 +8,7 @@ import pytz
 
 from config import token, ADMIN_CHATS_ID
 
-bot = telebot.TeleBot(token)
+bot = telebot.TeleBot(token, threaded=False)
 
 free = True
 book_user = ""
@@ -17,6 +17,8 @@ book_start = None
 
 wait_user = None
 wait_user_booked = None
+
+waiting_leave_chat_id = None
 
 queue = []
 
@@ -99,12 +101,15 @@ def book_command(message):
             wait_user_booked = True
             bot.send_message(message.chat.id, "Молодец, беги играть!")
         else:
-            bot.send_message(message.chat.id, "Не удалось, стол занят")
+            bot.send_message(message.chat.id, u"Не удалось, стол занят. "+\
+                                              u"В очереди "+str(len(queue))+u" человек. Чтобы встать в очередь, нажми /i_will_wait.")
+    print "CMD: book"
+    print "free:", free, "book_user:", book_user, "book_chat_id:", book_chat_id
 
 
 @bot.message_handler(commands=["leave"])
 def leave(message):
-    global free
+    global free, waiting_leave_chat_id, book_user
     if free:
         bot.send_message(message.chat.id, "В данный момент стол свободен.")
     else:
@@ -112,24 +117,31 @@ def leave(message):
             keyboard = types.InlineKeyboardMarkup()
             callback_button = types.InlineKeyboardButton(text="Да", callback_data="leave_for_sure")
             keyboard.add(callback_button)
-            bot.send_message(message.chat.id, "Ты хочешь освободить стол, "
-                                              "который занят в данный момент "
-                                              "другим человеком, ты уверен?", reply_markup=keyboard)
+            bot.send_message(message.chat.id, u"Ты хочешь освободить стол, "+\
+                                              u"который занят в данный момент @"+\
+                                              book_user+u", ты уверен?", reply_markup=keyboard)
+            waiting_leave_chat_id = message.chat.id
         else:
             unbook(message.chat.id)
-
+    print "CMD: leave"
+    print "free: ", free, " book_user: ", book_user 
 
 
 
 
 @bot.callback_query_handler(func=lambda call: True)
 def test_callback(call):
-    global book_chat_id
+    global book_chat_id, waiting_leave_chat_id
     if call.data == "leave_for_sure":
-        unbook(call.message.chat.id)
-        bot.send_message(book_chat_id, "Вашу бронь отменил @"+call.message.chat.id+". "
-                                       "Вероятно, вы забыли вовремя отметить доступность стола. Не надо так :(")
-
+        if call.message.chat.id == waiting_leave_chat_id:
+            book_chat_id_rem = book_chat_id
+            unbook(call.message.chat.id)
+            print "book chat id:", book_chat_id
+            bot.send_message(book_chat_id_rem, u"Вашу бронь отменили. "+\
+                                           u"Вероятно, вы забыли вовремя отметить доступность стола. Не надо так :(")
+            waiting_leave_chat_id = None
+        else:
+            bot.send_message(call.message.chat.id, "Уже отменено")
 
 @bot.message_handler(commands=["i_will_wait"])
 def add_to_queue(message):
