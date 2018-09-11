@@ -73,7 +73,8 @@ def unbook(chat_id, send_message=True):
         book_chat_id = None
         book_start = None
 
-    bot.send_message(chat_id, "Спасибо, что вовремя отметил, что стол освободился!")
+    if send_message:
+        bot.send_message(chat_id, "Спасибо, что вовремя отметил, что стол освободился!")
 
 
 @bot.message_handler(commands=['check'])
@@ -152,9 +153,12 @@ def add_to_queue(message):
     if pair in queue:
         bot.send_message(message.chat.id, "Вы уже в очереди, перед вами "+str(queue.index(pair))+" человек.")
     else:
-        queue.append(pair)
-        bot.send_message(message.chat.id, "Перед вами "+str(len(queue)-1)+" человек. "+ \
-                         "Когда придет ваша очередь, вам придет уведомление")
+        if book_user != message.from_user.username:
+            queue.append(pair)
+            bot.send_message(message.chat.id, "Перед вами "+str(len(queue)-1)+" человек. "+ \
+                             "Когда придет ваша очередь, вам придет уведомление")
+        else:
+            bot.send_message(message.chat.id, "Вы уже заняли стол, вам не нужно вставать очередь, играйте на здровье!")
 
 
 @bot.message_handler(commands=["start", "help"])
