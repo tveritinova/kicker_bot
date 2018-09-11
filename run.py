@@ -149,6 +149,8 @@ def add_to_queue(message):
     global free
     if free and len(queue) == 0:
         bot.send_message(message.chat.id, "Очередь пуста. Чтобы отметить, что вы заняли стол, нажмите /book.")
+        return
+
     pair = [message.from_user.username, message.chat.id]
     if pair in queue:
         bot.send_message(message.chat.id, "Вы уже в очереди, перед вами "+str(queue.index(pair))+" человек.")
