@@ -96,7 +96,7 @@ def book_command(message):
     if free:
         book(message.chat.id, message.from_user.username, datetime.datetime.now(pytz.timezone('Europe/Moscow')))
         Timer(GAME_TIME, lambda: remind(message.chat.id) if book_user == message.from_user.username else None).start()
-        bot.send_message(message.chat.id, "Успешно")
+        bot.send_message(message.chat.id, "Успешно. Не забудь нажать /leave, когда закончишь играть.")
     else:
         if wait_user == message.from_user.username:
             wait_user_booked = True
