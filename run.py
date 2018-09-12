@@ -19,6 +19,7 @@ wait_user = None
 wait_user_booked = None
 
 waiting_leave_chat_id = None
+waiting_leave_user = None
 
 queue = []
 
@@ -110,7 +111,7 @@ def book_command(message):
 
 @bot.message_handler(commands=["leave"])
 def leave(message):
-    global free, waiting_leave_chat_id, book_user
+    global free, waiting_leave_chat_id, book_user, waiting_leave_user
     if free:
         bot.send_message(message.chat.id, "В данный момент стол свободен.")
     else:
@@ -122,6 +123,7 @@ def leave(message):
                                               u"который занят в данный момент @"+\
                                               book_user+u", ты уверен?", reply_markup=keyboard)
             waiting_leave_chat_id = message.chat.id
+            waiting_leave_user = message.from_user.username
         else:
             unbook(message.chat.id)
     print "CMD: leave"
@@ -132,13 +134,13 @@ def leave(message):
 
 @bot.callback_query_handler(func=lambda call: True)
 def test_callback(call):
-    global book_chat_id, waiting_leave_chat_id
+    global book_chat_id, waiting_leave_chat_id, waiting_leave_user
     if call.data == "leave_for_sure":
         if call.message.chat.id == waiting_leave_chat_id:
             book_chat_id_rem = book_chat_id
             unbook(call.message.chat.id)
             print "book chat id:", book_chat_id
-            bot.send_message(book_chat_id_rem, u"Вашу бронь отменили. "+\
+            bot.send_message(book_chat_id_rem, u"Вашу бронь отменил @"+waiting_leave_user+". "+\
                                            u"Вероятно, вы забыли вовремя отметить доступность стола. Не надо так :(")
             waiting_leave_chat_id = None
         else:
